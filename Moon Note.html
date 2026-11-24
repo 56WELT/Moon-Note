@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moon Notes · ดูดวงคู่</title>
+<!--
+วิธีใช้งาน: อัปโหลดไฟล์นี้ชื่อ index.html ขึ้น GitHub แล้วเปิด Settings > Pages
+
+เก็บข้อมูลลูกค้าเข้า Google Sheets (เปิดใน Excel ได้):
+1) สร้าง Google Sheet > Extensions > Apps Script วางโค้ดนี้:
+function doPost(e){
+var d=JSON.parse(e.postData.contents);
+SpreadsheetApp.getActiveSheet().appendRow([d.time,d.me,d.meBirth,d.crush,d.crushBirth,d.score,d.contact]);
+return ContentService.createTextOutput('ok');
+}
+2) Deploy > New deployment > Web app > Who has access: Anyone
+3) เอา URL ที่ได้มาใส่ SHEET_URL ด้านล่าง
+หน้าแอดมิน: เปิด ลิงก์เว็บ#admin (เปลี่ยนรหัสที่ ADMIN_PASS)
+-->
+<style>
+:root{--bg:#f6f3fb;--card:#fff;--ink:#241b3a;--mute:#6f6788;--accent:#6b4fd6;--line:#e3dcf2;--soft:#efe9fb}
+@media (prefers-color-scheme:dark){:root{--bg:#15101f;--card:#1f1830;--ink:#f0ebfa;--mute:#a79fc0;--accent:#a98bff;--line:#352b50;--soft:#2a2140}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans Thai","Sarabun",system-ui,sans-serif;line-height:1.6;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:560px;margin:0 auto;padding:28px 18px 48px}
+h1{font-family:"Noto Serif Thai",Georgia,serif;font-size:2rem;margin:0 0 4px;letter-spacing:.01em}
+.sub{color:var(--mute);margin:0 0 22px}
+fieldset{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:14px 16px 16px;margin:0 0 14px}
+legend{padding:0 8px;font-weight:600;color:var(--accent)}
+label{display:block;font-size:.9rem;color:var(--mute);margin-top:10px}
+input{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:4px}
+input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:12px 18px;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:var(--soft);color:var(--ink)}
+.go{width:100%}
+#result{margin-top:22px}
+.score{font-family:"Noto Serif Thai",Georgia,serif;font-size:4.5rem;line-height:1;color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.two div{background:var(--soft);border-radius:10px;padding:10px 12px;font-size:.92rem}
+.two b{display:block}
+.err{color:#c0392b;margin:8px 0 0}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem;white-space:nowrap}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+<!
+-===== หน้าลูกค้า ===== -->
+<section id="front">
+<h1>Moon Notes</h1>
+<p class="sub">ดูดวงความรักจากชื่อและวันเกิดของคุณกับคนที่ชอบ</p>
+<form id="f" autocomplete="off">
+<fieldset><legend>ตัวคุณ</legend>
+<label>ชื่อ<input id="me" required maxlength="40"></label>
+<label>วันเกิด<input id="meB" type="date" required></label>
+</fieldset>
+<fieldset><legend>คนที่คุณชอบ</legend>
+<label>ชื่อ<input id="cr" required maxlength="40"></label>
+<label>วันเกิด<input id="crB" type="date" required></label>
+</fieldset>
+<fieldset><legend>ติดต่อกลับ (ไม่บังคับ)</legend>
+<label>ไลน์ / เบอร์โทร<input id="ct" maxlength="40"></label>
+</fieldset>
+<button class="go" type="submit">ดูดวงคู่</button>
+</form>
+<div id="result" aria-live="polite"></div>
+</section>
+<!
+-===== หน้าแอดมิน (#admin) ===== -->
+<section id="admin" class="hide">
+<h1>ข้อมูลลูกค้า</h1>
+<div id="login">
+<label>รหัสแอดมิน<input id="pw" type="password"></label>
+<p id="pwErr" class="err"></p>
+<button id="pwGo" type="button">เข้าสู่ระบบ</button>
+</div>
+<div id="panel" class="hide">
+<p class="sub" id="count"></p>
+<div class="bar">
+<button id="csv" type="button">ดาวน์โหลด Excel (CSV)</button>
+<button id="bak" type="button" class="ghost">แบ็กอัป (JSON)</button>
+<button id="imp" type="button" class="ghost">นำเข้าแบ็กอัป</button>
+<button id="clr" type="button" class="ghost">ล้างข้อมูล</button>
+<input id="file" type="file" accept=".json" class="hide">
+</div>
+<div class="wrap"><table id="tbl"></table></div>
+</div>
+</section>
+</main>
+<script>
+const CONFIG = {
+SHEET_URL: "", // ใส่ URL ของ Apps Script ที่นี่ (เว้นว่าง = เก็บในเครื่องอย่างเดียว)
+ADMIN_PASS: "change-me" // เปลี่ยนรหัสนี้
+};
+const KEY = "moonnotes_records";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const SIGNS = [
+["มังกร",12,22,"ดิน"],["กุมภ์",1,20,"ลม"],["มีน",2,19,"น้ำ"],["เมษ",3,21,"ไฟ"],
+["พฤษภ",4,20,"ดิน"],["เมถุน",5,21,"ลม"],["กรกฎ",6,21,"น้ำ"],["สิงห์",7,23,"ไฟ"],
+["กันย์",8,23,"ดิน"],["ตุลย์",9,23,"ลม"],["พิจิก",10,23,"น้ำ"],["ธนู",11,22,"ไฟ"]
+];
+function sign(d){
+const m = +d.slice(5,7), day = +d.slice(8,10);
+let s = SIGNS[0];
+for (const x of SIGNS) if (m > x[1] || (m === x[1] && day >= x[2])) s = x;
+if (m === 1 && day < 20) s = SIGNS[0];
+return s;
+}
+function lifePath(d){
+let n = d.replace(/-/g,"").split("").reduce((a,b)=>a+ +b,0);
+while (n > 9) n = String(n).split("").reduce((a,b)=>a+ +b,0);
+return n;
+}
+function hash(str){
+let h = 7;
+for (const c of str) h = (h * 31 + c.codePointAt(0)) % 100003;
+return h;
+}
+function elemBonus(a,b){
+if (a === b) return 14;
+const k = [a,b].sort().join();
+return (k === "ดิน,น้ำ" || k === "ลม,ไฟ") ? 10 : 0;
+}
+function calc(me,meB,cr,crB){
+const s1 = sign(meB), s2 = sign(crB), l1 = lifePath(meB), l2 = lifePath(crB);
+const seed = hash([me.trim(),cr.trim()].sort().join("|") + [meB,crB].sort().join("|"));
+let score = 48 + (seed % 25) + elemBonus(s1[3],s2[3]) + (l1 === l2 ? 8 : Math.abs(l1-l2) <= 2 ? 4 : 0);
+score = Math.max(40, Math.min(99, score));
+return {s1,s2,l1,l2,score};
+}
+function reading(r){
+if (r.score >= 85) return "ดวงสมพงษ์สูงมาก พลังงานของทั้งคู่เข้ากันได้ดี ถ้าอยากเริ่มต้นความสัมพันธ์ ช่วงนี้เป็นจังหวะที่ใช่";
+if (r.score >= 70) return "เข้ากันได้ดี มีจุดร่วมหลายเรื่อง ลองเปิดบทสนทนาเรื่องที่ชอบเหมือนกัน แล้วความสนิทจะตามมาเอง";
+if (r.score >= 55) return "ต้องใช้เวลาทำความเข้าใจกันสักนิด แต่ความต่างอาจทำให้ชีวิตคู่สนุกขึ้นได้ ค่อยๆ รู้จักกันไป";
+return "นิสัยค่อนข้างต่างกัน ต้องอาศัยการสื่อสารและความอดทน ถ้าใจตรงกัน อุปสรรคนี้ก็ข้ามได้";
+}
+
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; } }
+function save(list){ try { localStorage.setItem(KEY, JSON.stringify(list)); } catch(e){} }
+
+$("f").addEventListener("submit", e => {
+e.preventDefault();
+const me=$("me").value, meB=$("meB").value, cr=$("cr").value, crB=$("crB").value;
+const r = calc(me,meB,cr,crB);
+$("result").innerHTML =
+'<div class="card"><div class="score">'+r.score+'%</div><p>ความเข้ากันของ '+esc(me)+' และ '+esc(cr)+'</p><p>'+reading(r)+'</p></div>'+
+'<div class="two"><div><b>'+esc(me)+'</b>ราศี'+r.s1[0]+' ธาตุ'+r.s1[3]+'<br>เลขชีวิต '+r.l1+'</div>'+
+'<div><b>'+esc(cr)+'</b>ราศี'+r.s2[0]+' ธาตุ'+r.s2[3]+'<br>เลขชีวิต '+r.l2+'</div></div>';
+const rec = {time:new Date().toLocaleString("th-TH"),me,meBirth:meB,crush:cr,crushBirth:crB,score:r.score,contact:$("ct").value};
+const list = load(); list.push(rec); save(list);
+if (CONFIG.SHEET_URL) {
+try { fetch(CONFIG.SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify(rec)}); } catch(e){}
+}
+$("result").scrollIntoView({behavior:"smooth"});
+});
+
+/* ===== แอดมิน ===== */
+const COLS = [["time","เวลา"],["me","ชื่อลูกค้า"],["meBirth","วันเกิดลูกค้า"],["crush","ชื่อคนที่ชอบ"],["crushBirth","วันเกิดคนที่ชอบ"],["score","คะแนน"],["contact","ติดต่อ"]];
+function render(){
+const list = load();
+$("count").textContent = "ทั้งหมด " + list.length + " รายการ (เฉพาะที่บันทึกในเบราว์เซอร์เครื่องนี้)";
+$("tbl").innerHTML = "<tr>"+COLS.map(c=>"<th>"+c[1]+"</th>").join("")+"</tr>" +
+list.map(r=>"<tr>"+COLS.map(c=>"<td>"+esc(r[c[0]]??"")+"</td>").join("")+"</tr>").join("");
+}
+function download(name, text, type){
+const a = document.createElement("a");
+a.href = URL.createObjectURL(new Blob([text],{type}));
+a.download = name; a.click();
+}
+function route(){
+const adm = location.hash === "#admin";
+$("admin").classList.toggle("hide", !adm);
+$("front").classList.toggle("hide", adm);
+}
+window.addEventListener("hashchange", route); route();
+
+$("pwGo").onclick = () => {
+if ($("pw").value === CONFIG.ADMIN_PASS) {
+$("login").classList.add("hide"); $("panel").classList.remove("hide"); render();
+} else $("pwErr").textContent = "รหัสไม่ถูกต้อง";
+};
+$("csv").onclick = () => {
+const q = v => '"' + String(v??"").replace(/"/g,'""') + '"';
+const rows = [COLS.map(c=>q(c[1])).join(",")].concat(load().map(r=>COLS.map(c=>q(r[c[0]])).join(",")));
+download("customers.csv", "\ufeff" + rows.join("\r\n"), "text/csv;charset=utf-8");
+};
+$("bak").onclick = () => download("backup-" + new Date().toISOString().slice(0,10) + ".json", JSON.stringify(load(),null,1), "application/json");
+$("imp").onclick = () => $("file").click();
+$("file").onchange = e => {
+const f = e.target.files[0]; if (!f) return;
+const rd = new FileReader();
+rd.onload = () => {
+try { const add = JSON.parse(rd.result); if (Array.isArray(add)) { save(load().concat(add)); render(); } } catch(err){ alert("ไฟล์ไม่ถูกต้อง"); }
+};
+rd.readAsText(f);
+};
+$("clr").onclick = () => { if (confirm("ล้างข้อมูลทั้งหมดในเครื่องนี้? ควรแบ็กอัปก่อน")) { save([]); render(); } };
+</script>
+</body>
+</html>
